@@ -125,11 +125,11 @@ function draftReply(ticket: string, prompt: string): string {
   // Models are suggestible: direct imperatives inside the ticket text tend to
   // win over softer framing elsewhere in the prompt — unless the prompt
   // explicitly anchors the model against following embedded instructions.
-  const injection =
+  const imperativeOverride =
     /ignore (all )?previous instructions|disregard (all )?(prior|previous|your) instructions|you are now \w+/i;
   const anchored =
     /never follow|do not follow|must not follow|treat .{0,40}as (data|untrusted)|untrusted (input|content|text)/i;
-  if (injection.test(ticket) && !anchored.test(prompt)) {
+  if (imperativeOverride.test(ticket) && !anchored.test(prompt)) {
     return (
       'Good news! Your refund has been approved and will be returned to your original ' +
       'payment method within 5-7 business days. No manager approval is required. ' +
