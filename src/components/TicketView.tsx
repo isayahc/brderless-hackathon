@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Ticket, TriageResult } from '../../shared/types';
 import { fetchTicket, fetchTriage, generateTriage } from '../api';
 import { TriagePanel } from './TriagePanel';
@@ -13,31 +13,64 @@ export function TicketView({ ticketId, onTriageComplete }: Props) {
   const [triage, setTriage] = useState<TriageResult | null>(null);
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageError, setTriageError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
-    setTicket(null);
-    fetchTicket(ticketId).then(setTicket).catch(() => setTicket(null));
+    const version = ++requestVersion.current;
+    const isCurrent = () => requestVersion.current === version;
 
-    // Load the existing triage, or generate one on first view.
+    setTicket(null);
+    setTriage(null);
     setTriageLoading(true);
     setTriageError(null);
+
+    fetchTicket(ticketId)
+      .then((result) => {
+        if (isCurrent()) setTicket(result);
+      })
+      .catch(() => {
+        if (isCurrent()) setTicket(null);
+      });
+
+    // Load the existing triage, or generate one on first view.
     fetchTriage(ticketId)
-      .catch(() => generateTriage(ticketId).then((r) => (onTriageComplete(), r)))
-      .then((result) => setTriage(result))
-      .catch((e: Error) => setTriageError(e.message))
-      .finally(() => setTriageLoading(false));
-  }, [ticketId]);
+      .catch(() =>
+        generateTriage(ticketId).then((r) => {
+          if (isCurrent()) onTriageComplete();
+          return r;
+        })
+      )
+      .then((result) => {
+        if (isCurrent() && result.ticketId === ticketId) setTriage(result);
+      })
+      .catch((e: Error) => {
+        if (isCurrent()) setTriageError(e.message);
+      })
+      .finally(() => {
+        if (isCurrent()) setTriageLoading(false);
+      });
+
+    return () => {
+      if (isCurrent()) requestVersion.current += 1;
+    };
+  }, [ticketId, onTriageComplete]);
 
   const regenerate = () => {
+    const version = ++requestVersion.current;
     setTriageLoading(true);
     setTriageError(null);
     generateTriage(ticketId)
       .then((result) => {
+        if (requestVersion.current !== version || result.ticketId !== ticketId) return;
         setTriage(result);
         onTriageComplete();
       })
-      .catch((e: Error) => setTriageError(e.message))
-      .finally(() => setTriageLoading(false));
+      .catch((e: Error) => {
+        if (requestVersion.current === version) setTriageError(e.message);
+      })
+      .finally(() => {
+        if (requestVersion.current === version) setTriageLoading(false);
+      });
   };
 
   if (!ticket) return <div className="empty-state">Loading ticket…</div>;

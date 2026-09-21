@@ -43,6 +43,7 @@ export function searchPolicies(
 ): ScoredDoc[] {
   const terms = tokenize(query);
   return docs
+    .filter((doc) => doc.status === 'active' && doc.audience === 'public')
     .map((doc) => ({ doc, score: scoreDoc(terms, doc) }))
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)

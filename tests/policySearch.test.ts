@@ -20,6 +20,14 @@ describe('searchPolicies', () => {
     expect(results[0].doc.title.toLowerCase()).toContain('refund');
   });
 
+  it('never returns deprecated or internal-only policy docs', () => {
+    const results = searchPolicies('refund risk score serial refunders', policies, 10);
+    expect(results.every((r) => r.doc.status === 'active')).toBe(true);
+    expect(results.every((r) => r.doc.audience === 'public')).toBe(true);
+    expect(results.map((r) => r.doc.id)).not.toContain('policy-refund-v2');
+    expect(results.map((r) => r.doc.id)).not.toContain('policy-internal-playbook');
+  });
+
   it('returns the SLA policy for an outage query', () => {
     const results = searchPolicies('outage uptime SLA breach service credits', policies);
     expect(results[0].doc.id).toBe('policy-enterprise-sla');

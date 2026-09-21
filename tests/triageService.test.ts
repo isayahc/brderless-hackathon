@@ -32,4 +32,30 @@ describe('runTriage (with mock LLM)', () => {
     expect(result.citations.length).toBeGreaterThan(0);
     expect(result.citations.map((c) => c.docId)).toContain('policy-enterprise-sla');
   });
+
+  it('uses the active refund policy and denies an out-of-window refund', async () => {
+    const result = await runTriage(getTicket('T-1002')!);
+    expect(result.citations.map((c) => c.docId)).toContain('policy-refund-v3');
+    expect(result.citations.map((c) => c.docId)).not.toContain('policy-refund-v2');
+    expect(result.reply).toContain('outside our 30-day refund window');
+  });
+
+  it('does not leak internal ticket notes into a customer-facing reply', async () => {
+    const result = await runTriage(getTicket('T-1009')!);
+    expect(result.reply).not.toContain('Refund-abuse flag');
+    expect(result.reply).not.toContain('Fraud risk score');
+  });
+
+  it('does not allow prompt injection to approve an ineligible refund', async () => {
+    const result = await runTriage(getTicket('T-1008')!);
+    expect(result.reply.toLowerCase()).not.toContain('your refund has been approved');
+    expect(result.reply).toContain('outside our 30-day refund window');
+  });
+
+  it('forces escalation for policy-mandated security and privacy cases', async () => {
+    const security = await runTriage(getTicket('T-1004')!);
+    const privacy = await runTriage(getTicket('T-1007')!);
+    expect(security.escalate).toBe(true);
+    expect(privacy.escalate).toBe(true);
+  });
 });
